@@ -86,5 +86,4 @@ See [Prototype_Documentation.md](Prototype_Documentation.md) for the full projec
 
 ---
 
-*Built for NYU Game Center — AI & Games (Spring 2026)*
 *Powered by Claude Code + Claude Opus 4*

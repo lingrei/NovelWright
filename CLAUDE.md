@@ -12,6 +12,14 @@ Detailed standards are in the Core Narrative Aesthetics Constitution below. When
 
 ---
 
+## Language Policy (Project Override)
+
+**All output in this project must be in English.** This includes: chat replies, planning documents, reviews, all content written to project files (`_Setting.md`, `_Story.md`, `_Draft.md`, `_chunk_plan.md`, `_chunk_review.md`, etc.), and all prose generation.
+
+This rule overrides any global language setting. Command files (`.claude/commands/`) are written in Chinese as source code — this does not affect output language.
+
+---
+
 ## Project Structure
 
 ```
