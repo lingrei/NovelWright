@@ -1,0 +1,53 @@
+project: "The Crescendo"
+current_chunk: 3
+chunks_completed: [1, 2]
+story_state:
+  after_chunk_2:
+    META:
+      - Lin Wei has progressive left-ear hearing loss (40% → worsening)
+      - Professor Chen suspects something but doesn't know what
+      - Recital is in 48 hours (end of Chunk 2 timeline)
+      - Mei witnessed the practice room episode but hasn't acted on it
+    POV:
+      lin_wei:
+        knows:
+          - her hearing is failing and getting worse
+          - Chen is watching her more closely than usual
+          - Mei saw something during the practice room dropout
+          - the recital program is printed — withdrawal would be public
+        doesnt_know:
+          - Chen noticed her compensating (leaning right) during practice
+          - Chen spoke with the department head about her "tension"
+        feels:
+          - trapped between exposure and failure
+          - grief she won't name — mourning the hearing while it's still partly there
+          - fury at her own body
+      chen:
+        knows:
+          - something is off with Lin Wei's playing — she's compensating
+          - her technique is subtly shifting (favoring right-side dynamics)
+          - she deflected his direct question with practiced calm
+        doesnt_know:
+          - the hearing loss
+          - how afraid she is
+        feels:
+          - professional frustration sharpened by personal worry
+          - guilt about pushing — but unable to stop
+      mei:
+        knows:
+          - Lin Wei froze during practice and didn't seem to hear her
+          - Lin Wei brushed it off too quickly
+        doesnt_know:
+          - the medical reality
+        feels:
+          - uneasy, unsure whether to press or respect the boundary
+    PHYSICAL:
+      - "Lin Wei's left ear: ~45% loss after Chunk 2 episode (was 40% at story start)"
+      - "Recital program: confirmed, printed, distributed to faculty and guests"
+      - "Practice room B-7: Lin Wei's usual room, where the Chunk 1 episode occurred"
+      - "Lin Wei's hands: tremor now visible when she's not actively playing"
+    IRREVERSIBLE:
+      - Chen confronted Lin Wei directly — she deflected, but he is now actively alert
+      - Lin Wei's hearing episode during practice was witnessed by Mei
+      - The recital program has been printed with Lin Wei's name on it
+      - Chen mentioned Lin Wei's "tension" to the department head (offscreen)

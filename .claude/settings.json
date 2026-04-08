@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(*)",
+      "Write(NovelWright/**)",
+      "Edit(NovelWright/**)",
+      "Bash(ls *)",
+      "Bash(cat *)"
+    ]
+  }
+}
