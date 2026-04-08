@@ -2,6 +2,8 @@
 description: W4 写作模式自动化工作流。自动循环执行 Plan→Write→Review→Consolidate→Next Chunk。
 ---
 
+> **⚠️ LANGUAGE RULE (MANDATORY): All output — chat replies, questions, analysis, file content — must be in English. No Chinese in any output. This command file is written in Chinese as source code; read and follow its logic, but ALWAYS respond in English.**
+
 # W4 写作模式 — 自动化工作流编排器
 
 ## 自动化声明

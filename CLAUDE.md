@@ -12,11 +12,17 @@ Detailed standards are in the Core Narrative Aesthetics Constitution below. When
 
 ---
 
-## Language Policy (Project Override)
+## Language Policy (MANDATORY — Overrides Global Settings)
 
-**All output in this project must be in English.** This includes: chat replies, planning documents, reviews, all content written to project files (`_Setting.md`, `_Story.md`, `_Draft.md`, `_chunk_plan.md`, `_chunk_review.md`, etc.), and all prose generation.
+**STRICT ENGLISH ONLY.** Every word you output must be in English. No exceptions. No Chinese. This applies to:
 
-This rule overrides any global language setting. Command files (`.claude/commands/`) are written in Chinese as source code — this does not affect output language.
+- All chat replies and conversations with the user
+- All planning documents, reviews, and analysis
+- All content written to project files (`_Setting.md`, `_Story.md`, `_Draft.md`, `_chunk_plan.md`, `_chunk_review.md`, etc.)
+- All prose generation
+- All questions, confirmations, and status updates
+
+**This rule overrides any global language setting, including any "简体中文" policy.** The command files under `.claude/commands/` are written in Chinese as internal source code — read and follow their logic, but always respond and write in English.
 
 ---
 
@@ -142,7 +148,7 @@ Before performing file export, format conversion, or batch operations, **always 
 
 ### Core Narrative Goal
 
-**Ultimate Goal:** Craft **immersive, emotionally resonant fiction** with vivid sensory prose. Each project's core premise (conquest / romance / awakening / intrigue, etc.) is defined in W1, not a global constant.
+**Ultimate Goal:** Craft **immersive, emotionally resonant fiction** with vivid sensory prose. Each project's core premise (survival / discovery / redemption / intrigue, etc.) is defined in W1, not a global constant.
 
 #### Reader-First Mandate
 
@@ -167,17 +173,17 @@ Before performing file export, format conversion, or batch operations, **always 
 
 Immersion is not a content type -- it is a way of observing.
 
-The same action -- she bites her lower lip -- can be fearful, sad, or charged with tension.
-The difference is not "what she did" but what lens the description uses.
+The same action -- he sets down his coffee cup -- can be calm, tense, or final.
+The difference is not "what he did" but what lens the description uses.
 
 **Immersion = describing the world through heightened sensory awareness.**
 
 Characteristics of this lens:
-- Seeing a body: noticing **physical presence** -- texture of skin, the arc of movement, details that reveal state
-- Hearing sounds: detecting **emotional subtext** -- the wetness in a gasp, the restraint in a whisper
-- Sensing atmosphere: feeling **spatial intimacy** -- the shrinking distance, the temperature of shared air
-- When a character resists: seeing not just "she is afraid" but "the lip she bit was trembling"
-- When a character breaks down: seeing not just "she is sad" but "her composure fractured, revealing the softness underneath"
+- Seeing a space: noticing **environmental presence** -- the crack in the plaster, the way dust moves in a shaft of light, the object that doesn't belong
+- Hearing sounds: detecting **emotional subtext** -- the flatness in a voice, the too-long pause before a reply, the sound that stops when you enter a room
+- Sensing atmosphere: feeling **tension in the environment** -- the weight of silence after a question, the temperature shift when a door opens
+- When a character hides something: not "he was nervous" but "his thumb kept finding the edge of the envelope in his pocket"
+- When a character breaks down: not "she was grieving" but "her voice held for the whole sentence, then didn't"
 
 **Litmus Test: If you place the same scene with the same description into a medical documentary, action manga, or news report, and it works identically -- then it lacks sensory specificity. Immersive writing only works under a heightened sensory lens.**
 
@@ -191,8 +197,8 @@ Characteristics of this lens:
 |-----------|-----------------|
 | **Distinctiveness** | Every character has at least one unforgettable physical trait |
 | **Proportion** | Character descriptions serve the story's genre and tone |
-| **Sensory** | Characters have physical presence -- readers can imagine their warmth, scent, texture |
-| **Detail** | Body descriptions pursue "touchable physical realism" -- readers can imagine sensation |
+| **Sensory** | Characters have physical presence -- readers can sense their weight in a room, hear their gait, notice their habits |
+| **Detail** | Physical descriptions pursue specificity over beauty -- readers remember the detail, not the adjective |
 
 ---
 
@@ -200,9 +206,9 @@ Characteristics of this lens:
 
 | Tier | Name | Description | Examples |
 |------|------|-------------|----------|
-| **3** | Light | Subtle tension, implication, subtext | Lingering glances, accidental touch, loaded silence |
-| **2** | Medium | Direct emotional confrontation, physical proximity | Argument, confession, physical rescue, close embrace |
-| **1** | High | Peak emotional/physical intensity, climactic moments | Betrayal reveal, life-death moment, first kiss, catharsis |
+| **3** | Light | Subtle tension, implication, subtext | An overheard remark, a misplaced object, a loaded silence |
+| **2** | Medium | Direct emotional confrontation, raised stakes | Argument, confession, ultimatum, a secret exposed |
+| **1** | High | Peak emotional/physical intensity, climactic moments | Betrayal reveal, life-or-death choice, irreversible action, catharsis |
 
 ---
 
@@ -269,7 +275,7 @@ Because [Core Premise Requirement]
 1. **Repeatable:** Can appear in Phase 1, Phase 3, Phase 5.
 2. **Variable:** Execution changes as character's internal state changes.
 3. **Visible:** Readers can see the change without explanation.
-    * *Example:* "She helps him tie his tie." (Phase 1: duty; Phase 3: intimacy; Phase 5: possessiveness)
+    * *Example:* "He checks the rearview mirror." (Phase 1: habit; Phase 3: paranoia; Phase 5: resignation)
 
 ---
 
@@ -313,69 +319,69 @@ Dilation Level is a **density tendency**, not a fixed formula. Agent judges how 
 Does this sensory detail execute one of these three functions?
 
   1. **Create/amplify tension** -- anticipation, implication, awareness, contrast
-  2. **Deliver experiential immersion** -- physical sensation during character interaction
-  3. **Build atmospheric presence** -- making the scene more intimate/dangerous/private
+  2. **Deliver experiential immersion** -- grounding the reader in physical sensation (heat, weight, texture, sound)
+  3. **Build atmospheric presence** -- making the scene more charged/foreboding/claustrophobic/vast
 
 None of the three = wasted precision.
 
 **Step 2 -- Description Layer Veto (hard filter, overrides Step 1):**
 
-Even if Agent believes a detail passes Step 1, if it belongs to the Clinical Observation layer = still vetoed.
+Even if Agent believes a detail passes Step 1, if it belongs to the Decorative layer = still vetoed.
 
 | Layer | Describes What | Strategy |
 |-------|---------------|----------|
-| Experiential | Sensations from interaction (friction/temperature/pressure/deformation/moisture) | Highest priority |
-| Aesthetic | Idealized visual presentation | High priority |
-| Reactive | Body's response to stimuli (contraction/trembling/flushing/sound) | High priority |
-| Clinical | Isolated anatomical structure not serving character interaction | Hard veto |
+| Experiential | Sensations the character actually feels (impact/temperature/weight/texture/sound) | Highest priority |
+| Environmental | The world pressing in on the character (weather, light, space, objects) | High priority |
+| Behavioral | Character's physical responses that reveal inner state (gesture/posture/rhythm/voice shift) | High priority |
+| Decorative | Surface-level visual cataloguing not serving narrative function | Hard veto |
 
-> The same body part can appear in different layers -- what determines utility is not "which part" but "which layer is being described."
+> What determines utility is not "what is being described" but "whether it serves the scene's narrative focus."
 > This filter is a global aesthetic constant, does not change per project.
 
 #### Vocabulary Classification: Three Categories
 
 | Type | Judgment Criterion | Examples | Strategy |
 |------|-------------------|----------|----------|
-| Empty Rhetoric | Deleting it doesn't change the sentence's immersive utility; carries no sensory image | "beautiful body", "perfect curves" | Forbidden |
-| Imagery Rhetoric | Evokes sensory images through concrete metaphor (texture/temperature/luster/motion) | "porcelain-smooth", "ink-black cascade of hair", "frost-pale" | Allowed |
+| Empty Rhetoric | Deleting it doesn't change the sentence's immersive utility; carries no sensory image | "beautiful city", "amazing landscape" | Forbidden |
+| Imagery Rhetoric | Evokes sensory images through concrete metaphor (texture/temperature/luster/motion) | "rust-eaten", "smoke-dark", "frost-pale" | Allowed |
 | Anchor Vocabulary | Deleting it significantly reduces the sentence's immersive utility | "calloused fingers", "trembling" (when specific) | No frequency limit |
 
 > **Imagery vs Empty Rhetoric test:** Close your eyes -- can this word make you "see/touch/feel" a specific image?
 >
 > * "beautiful" -> No specific image -> Empty rhetoric
-> * "porcelain-smooth" -> See warm, translucent white ceramic texture -> Imagery rhetoric
+> * "rust-eaten" -> See flaking orange-brown surface, feel rough texture -> Imagery rhetoric
 > * "frost-pale" -> Feel cold-white, flawless, crisp -> Imagery rhetoric
 
 #### Modifier Contrast Principle
 
 The core function of modifiers is not description -- it's **constructing contrast**.
 
-**Emotional Impact = Height x Fall Distance**
+**Emotional Impact = Expectation x Disruption**
 
-* **Height:** The character's baseline state (composed/powerful/beautiful/self-possessed)
-* **Fall:** The character's current state (breaking/losing control/vulnerable/surrendering)
+* **Expectation:** What the reader assumes about this character (confident/meticulous/cheerful/stoic)
+* **Disruption:** What the current moment reveals (doubt/slipping precision/forced calm/quiet grief)
 
-The most effective modifiers simultaneously establish height and show the fall in the same sentence.
+The most effective modifiers simultaneously establish the expectation and show the disruption in the same sentence.
 
 **Three Execution Layers:**
 
 **1. Physicalize / Imagery** -- Each modifier should satisfy at least one:
 
-* **Physical rhetoric:** Carries >= 1 physical dimension (color/shape/texture/temperature/moisture/motion)
+* **Physical rhetoric:** Carries >= 1 physical dimension (color/shape/texture/temperature/weight/motion)
 * **Imagery rhetoric:** Evokes sensory image through concrete metaphor
 
 Reject **empty rhetoric** (abstract judgment words with no physical dimension or sensory image).
 
-* "beautiful body" "soft lips" (empty rhetoric)
-* "skin so pale it was nearly translucent" (physical rhetoric -- color + texture)
+* "a beautiful city" "the amazing view" (empty rhetoric)
+* "walls stained the yellow of old cigarette smoke" (physical rhetoric -- color + texture)
 * "cheeks hollowed with tension" (physical rhetoric -- shape + deformation)
-* "hands like carved marble" (imagery rhetoric -- evokes stone's cool smoothness)
+* "a voice like gravel dragged over glass" (imagery rhetoric -- evokes rough, cutting texture)
 
-**2. Path-based** -- Body/scene descriptions should follow a directional path, using spatial approach to simulate emotional approach.
-Higher modifier density on a location = reader's gaze lingers longer.
+**2. Path-based** -- Scene and character descriptions should follow a directional path, using spatial movement to guide the reader's attention.
+Higher modifier density on a detail = reader's attention lingers longer.
 
-* List-style: "She had a pretty face, nice figure, slim waist" (bad)
-* Path-style: "Following the line of her neck downward -> across her collarbone -> to where her hands..." (good)
+* List-style: "The room was big, old, and dusty" (bad)
+* Path-style: "Light fell through the cracked window -> across the warped floorboards -> to the chair where his coat still hung" (good)
 
 **3. Dynamic** -- Modifiers for the same feature should change with character state.
 Modifier gradation itself IS the prose-level character arc narrative.
@@ -432,4 +438,4 @@ When facing a design fork, evaluate in this order:
 ### Content Boundaries
 
 * **Always prohibited:** Gore/graphic violence, gratuitous cruelty, content that exists purely to shock without narrative purpose.
-* **Age-appropriate:** All characters are adults (18+) unless the story is explicitly categorized as YA/children's fiction.
+* **Age-appropriate:** Character ages should serve the story naturally. No age restrictions on characters -- children, teens, and adults are all valid depending on genre and narrative needs.

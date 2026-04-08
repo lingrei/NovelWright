@@ -2,6 +2,8 @@
 description: W1-W3 规划工作流编排器（Phase 0 / 世界构建 / 角色设计 / 剧情规划）。
 ---
 
+> **⚠️ LANGUAGE RULE (MANDATORY): All output — chat replies, questions, analysis, file content — must be in English. No Chinese in any output. This command file is written in Chinese as source code; read and follow its logic, but ALWAYS respond in English.**
+
 # 规划工作流 — 编排器
 
 > **本文件做流程编排 + 嵌入关键约束。知识定义在对应Skill命令中。**
