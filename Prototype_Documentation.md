@@ -1,6 +1,9 @@
 # NovelWright: AI-Powered Collaborative Novel Writing Tool
 ## Prototype Documentation — Assignment 8
 
+> **GitHub Repository:** [github.com/lingrei/NovelWright](https://github.com/lingrei/NovelWright)
+> **Project Page:** [abovetheblueprints.com/NovelWright](http://abovetheblueprints.com/NovelWright/)
+
 ---
 
 ## 1. User Experience Design
@@ -156,7 +159,7 @@ Story state is tracked across 4 dimensions in `_state.yaml`:
 A short literary fiction piece about a concert pianist hiding progressive hearing loss. The `sample_project/` folder contains:
 - Complete `_Setting.md` (world rules + 2 character profiles)
 - Complete `_Story.md` (4-chunk plot structure)
-- Partial `_Draft.md` (~800 words of polished prose for Chunks 1-2)
+- Partial `_Draft.md` (~2,000 words of polished prose for Chunks 1-2)
 - Active `_chunk_plan.md` (execution plan for Chunk 3)
 - `_state.yaml` (4D state after Chunk 2)
 
@@ -249,7 +252,10 @@ A short literary fiction piece about a concert pianist hiding progressive hearin
 
 ## 7. Source Code
 
-All source code is included in this submission folder:
+**GitHub Repository:** [github.com/lingrei/NovelWright](https://github.com/lingrei/NovelWright)
+**Project Page:** [abovetheblueprints.com/NovelWright](http://abovetheblueprints.com/NovelWright/)
+
+All source code is also included in this submission folder:
 
 - **`CLAUDE.md`** — Core system prompt (~400 lines) defining the narrative aesthetics constitution
 - **`.claude/commands/`** — 19 slash command files (orchestrators, skills, sub-agents)
