@@ -1,0 +1,394 @@
+"use client";
+
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useProjectsStore } from "@/lib/stores/projects";
+import { PlanRail } from "@/components/plan/PlanRail";
+import { ConversationPane } from "@/components/plan/ConversationPane";
+import { CanvasPane } from "@/components/plan/CanvasPane";
+import { StatePane } from "@/components/plan/StatePane";
+import { SubAgentPanel } from "@/components/plan/SubAgentPanel";
+import { GateBar } from "@/components/plan/GateBar";
+import { postSSE } from "@/lib/client/sse";
+import type { ConversationTurn, PlanSubStep } from "@novelwright/types";
+
+type SubAgentKind = "redteam" | "outline-review";
+type SubAgentState = "activating" | "streaming" | "complete";
+
+interface SubAgentRunState {
+  kind: SubAgentKind;
+  state: SubAgentState;
+  streamingContent: string;
+}
+
+export default function PlanView() {
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const project = useProjectsStore((s) => s.getProject(params.id));
+  const appendTurn = useProjectsStore((s) => s.appendTurn);
+  const appendSubAgentTurn = useProjectsStore((s) => s.appendSubAgentTurn);
+  const applyStructuredUpdate = useProjectsStore((s) => s.applyStructuredUpdate);
+  const advanceSubStep = useProjectsStore((s) => s.advanceSubStep);
+  const advancePhase = useProjectsStore((s) => s.advancePhase);
+  const addCost = useProjectsStore((s) => s.addCost);
+  const [hydrated, setHydrated] = useState(false);
+  const [streamingTurn, setStreamingTurn] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [subAgent, setSubAgent] = useState<SubAgentRunState | null>(null);
+  const [transitioning, setTransitioning] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  if (!hydrated) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <p className="text-[var(--color-studio-text-muted)]">Loading project…</p>
+      </main>
+    );
+  }
+
+  if (!project) {
+    return (
+      <main className="min-h-screen flex flex-col items-center justify-center px-6">
+        <p className="text-xl mb-4 text-[var(--color-studio-text-secondary)]">
+          That project doesn&apos;t exist anymore.
+        </p>
+        <Link href="/app/projects" className="text-[var(--color-accent-primary)]">
+          ← Back to projects
+        </Link>
+      </main>
+    );
+  }
+
+  const subStep = project.currentPlanSubStep;
+  const conversation = project.conversations[subStep] ?? [];
+
+  // -- Main conversation handler --
+  const handleSend = async (message: string) => {
+    if (isStreaming || subAgent) return;
+    const userTurn: ConversationTurn = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: message,
+      timestamp: new Date().toISOString(),
+    };
+    appendTurn(project.id, subStep, userTurn);
+    setIsStreaming(true);
+    setStreamingTurn("");
+
+    let accumulated = "";
+    await postSSE(
+      `/api/stages/${subStep}`,
+      {
+        userMessage: message,
+        conversationHistory: [...conversation, userTurn],
+        premise: project.premise,
+        setting: project.setting,
+        characters: project.characters,
+        story: project.story,
+      },
+      {
+        onProseToken: (token) => {
+          accumulated += token;
+          setStreamingTurn(accumulated);
+        },
+        onStructuredUpdate: (stage, data) => {
+          applyStructuredUpdate(project.id, stage as PlanSubStep, data);
+        },
+        onCostUpdate: ({ totalUsd }) => addCost(project.id, totalUsd),
+        onComplete: (data) => {
+          const usage = (data as { usage?: { costUsd?: number } }).usage;
+          if (usage?.costUsd) addCost(project.id, usage.costUsd);
+        },
+        onError: (err) => {
+          accumulated += `\n\n_⚠ Error: ${err}_`;
+        },
+      },
+    );
+
+    appendTurn(project.id, subStep, {
+      id: crypto.randomUUID(),
+      role: "agent",
+      agent: "main",
+      content: accumulated,
+      timestamp: new Date().toISOString(),
+    });
+    setIsStreaming(false);
+    setStreamingTurn("");
+  };
+
+  // -- Sub-agent activation --
+  const runSubAgent = async (kind: SubAgentKind) => {
+    if (subAgent || isStreaming) return;
+    setSubAgent({ kind, state: "activating", streamingContent: "" });
+    await new Promise((r) => setTimeout(r, 3000)); // 3-second cinematic
+    setSubAgent({ kind, state: "streaming", streamingContent: "" });
+
+    let accumulated = "";
+    await postSSE(
+      `/api/stages/${kind}`,
+      {
+        premise: project.premise ?? {},
+        setting: project.setting ?? {},
+        characters: project.characters ?? [],
+        ...(kind === "outline-review" ? { story: project.story ?? {} } : {}),
+      },
+      {
+        onProseToken: (token) => {
+          accumulated += token;
+          setSubAgent((prev) =>
+            prev ? { ...prev, state: "streaming", streamingContent: accumulated } : prev,
+          );
+        },
+        onStructuredUpdate: (stage, data) => {
+          applyStructuredUpdate(project.id, stage as "redteam" | "outline-review", data);
+        },
+        onCostUpdate: ({ totalUsd }) => addCost(project.id, totalUsd),
+        onComplete: (data) => {
+          const usage = (data as { usage?: { costUsd?: number } }).usage;
+          if (usage?.costUsd) addCost(project.id, usage.costUsd);
+        },
+        onError: (err) => {
+          accumulated += `\n\n_⚠ Error: ${err}_`;
+        },
+      },
+    );
+
+    appendSubAgentTurn(project.id, kind, {
+      id: crypto.randomUUID(),
+      role: "agent",
+      agent: kind,
+      content: accumulated,
+      timestamp: new Date().toISOString(),
+    });
+    setSubAgent({ kind, state: "complete", streamingContent: accumulated });
+  };
+
+  const dismissSubAgent = () => setSubAgent(null);
+
+  // -- Plan → Write transition --
+  const handleApproveAndWrite = async () => {
+    setTransitioning(true);
+    await new Promise((r) => setTimeout(r, 1800));
+    advancePhase(project.id, "write");
+    router.push(`/app/projects/${project.id}/write`);
+  };
+
+  // -- Compute current sub-step CTA inline (closures over runSubAgent + advanceSubStep) --
+  const cta = computeCTA();
+
+  function computeCTA():
+    | { label: string; onClick: () => void; disabled?: boolean; hint?: string | null }
+    | null {
+    if (subAgent) return null; // sub-agent panel takes over
+    const p = project!;
+
+    if (subStep === "idea") {
+      const ready = !!(
+        p.premise?.hook &&
+        p.premise?.coreDesire &&
+        p.premise?.conflictDriver &&
+        p.premise?.structuralLayer
+      );
+      return {
+        label: "Continue to World",
+        disabled: !ready,
+        hint: ready ? null : "Need all four premise fields shaped first.",
+        onClick: () => advanceSubStep(p.id, "world"),
+      };
+    }
+
+    if (subStep === "world") {
+      const hasRules = (p.setting?.worldRules?.length ?? 0) >= 1;
+      return {
+        label: "Continue to Characters",
+        disabled: !hasRules,
+        hint: hasRules ? null : "Need at least one world rule derived first.",
+        onClick: () => advanceSubStep(p.id, "characters"),
+      };
+    }
+
+    if (subStep === "characters") {
+      const charsReady = (p.characters ?? []).filter((c) => c.name && c.role).length >= 1;
+      if (!p.redTeamReport && charsReady) {
+        return {
+          label: "Run Red Team review",
+          hint: "Independent destructive critique by a separate AI context.",
+          onClick: () => runSubAgent("redteam"),
+        };
+      }
+      if (p.redTeamReport) {
+        return {
+          label: "Continue to Plot",
+          onClick: () => advanceSubStep(p.id, "plot"),
+        };
+      }
+      return {
+        label: "Run Red Team review",
+        disabled: true,
+        hint: "Need at least one character with name + role first.",
+        onClick: () => {},
+      };
+    }
+
+    if (subStep === "plot") {
+      const hasChunks = (p.story?.chunks?.length ?? 0) >= 1;
+      if (!p.outlineReviewReport && hasChunks) {
+        return {
+          label: "Run Outline Review",
+          hint: "Independent Producer + Editor verdict.",
+          onClick: () => runSubAgent("outline-review"),
+        };
+      }
+      if (p.outlineReviewReport) {
+        return null; // GateBar takes over below
+      }
+      return {
+        label: "Run Outline Review",
+        disabled: true,
+        hint: "Need at least one Chunk defined first.",
+        onClick: () => {},
+      };
+    }
+
+    return null;
+  }
+
+  const showGateBar =
+    subStep === "plot" && !!project.outlineReviewReport && !subAgent;
+
+  return (
+    <main className="h-screen flex flex-col relative overflow-hidden">
+      <header className="border-b border-[var(--color-studio-border-subtle)] px-6 py-3 flex items-center gap-6 z-10 bg-[var(--color-studio-base)]">
+        <Link
+          href="/app/projects"
+          className="text-sm text-[var(--color-studio-text-muted)] hover:text-[var(--color-accent-primary)] shrink-0"
+        >
+          ← Projects
+        </Link>
+        <h1 className="text-base font-medium shrink-0" style={{ fontFamily: "var(--font-display)" }}>
+          {project.title}
+        </h1>
+        <div className="flex-1">
+          <PlanRail current={subStep} onSelect={(s) => advanceSubStep(project.id, s)} />
+        </div>
+      </header>
+
+      <div className="flex-1 grid grid-cols-[minmax(360px,30%)_1fr_minmax(280px,25%)] overflow-hidden relative">
+        <ConversationPane
+          subStep={subStep}
+          conversation={conversation}
+          streamingContent={streamingTurn}
+          isStreaming={isStreaming}
+          onSend={handleSend}
+        />
+        <div className="relative overflow-hidden">
+          <CanvasPane subStep={subStep} project={project} />
+
+          {cta && !subAgent && (
+            <div className="absolute bottom-0 inset-x-0 px-8 py-4 bg-gradient-to-t from-[var(--color-studio-base)] via-[var(--color-studio-base)] to-transparent">
+              <div className="flex items-center justify-end gap-3">
+                {cta.hint && (
+                  <p className="text-xs text-[var(--color-studio-text-muted)] mr-auto italic">
+                    {cta.hint}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={cta.onClick}
+                  disabled={cta.disabled}
+                  className="px-5 py-2.5 rounded-md bg-[var(--color-accent-primary)] text-[var(--color-studio-base)] font-medium hover:bg-[var(--color-accent-glow)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {cta.label}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <AnimatePresence>
+            {subAgent && (
+              <SubAgentPanel
+                agent={subAgent.kind}
+                state={subAgent.state}
+                streamingContent={subAgent.streamingContent}
+                conversation={
+                  subAgent.kind === "redteam"
+                    ? project.redTeamConversation ?? []
+                    : project.outlineReviewConversation ?? []
+                }
+                findings={
+                  subAgent.kind === "redteam"
+                    ? project.redTeamReport?.findings
+                    : [
+                        ...(project.outlineReviewReport?.producerFindings ?? []),
+                        ...(project.outlineReviewReport?.editorFindings ?? []),
+                      ]
+                }
+                producerScore={project.outlineReviewReport?.producerScore}
+                editorScore={project.outlineReviewReport?.editorScore}
+                onDismiss={dismissSubAgent}
+              />
+            )}
+          </AnimatePresence>
+        </div>
+        <StatePane subStep={subStep} project={project} />
+      </div>
+
+      <AnimatePresence>
+        {showGateBar && (
+          <GateBar
+            status={`Plan complete · ${(project.story?.chunks ?? []).length} chunks · ~${
+              (project.story?.chunks ?? []).reduce((s, c) => s + (c.targetWords ?? 0), 0) || "?"
+            } words. Ready to write.`}
+            primaryLabel="Approve and start writing"
+            onPrimary={handleApproveAndWrite}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>{transitioning && <ModeSwitchCeremony />}</AnimatePresence>
+    </main>
+  );
+}
+
+function ModeSwitchCeremony() {
+  return (
+    <motion.div
+      className="absolute inset-0 z-50 pointer-events-none"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <motion.div
+        className="absolute inset-0 bg-black"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 1, 1, 0] }}
+        transition={{ duration: 1.6, times: [0, 0.3, 0.65, 1] }}
+      />
+      <motion.div
+        className="absolute inset-0 bg-[var(--color-page-base)]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 0, 1, 1] }}
+        transition={{ duration: 1.6, times: [0, 0.3, 0.7, 1] }}
+      />
+      <motion.div
+        className="absolute inset-0 flex items-center justify-center"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 0, 1, 1, 0] }}
+        transition={{ duration: 1.8, times: [0, 0.4, 0.55, 0.85, 1] }}
+      >
+        <p
+          className="text-2xl text-[var(--color-page-text-primary)] italic"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
+          The plan is yours. The prose begins now.
+        </p>
+      </motion.div>
+    </motion.div>
+  );
+}

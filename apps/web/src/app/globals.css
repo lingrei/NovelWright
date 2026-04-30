@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/* ============================================================================
+ * NovelWright design tokens
+ * Two visual modes — Studio chrome (dominant in Plan view) + Page warmth (Write view).
+ * Mode swap is the visual climax of the product (see plan §9).
+ * ============================================================================ */
+
+@theme {
+  /* Fonts */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: "Newsreader", "Source Serif 4", Georgia, serif;
+  --font-display: "Fraunces", "Newsreader", Georgia, serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", monospace;
+
+  /* Studio mode — primary surfaces */
+  --color-studio-base: oklch(11% 0.005 264);          /* #0A0B0E */
+  --color-studio-raised: oklch(15% 0.006 264);        /* #13151A */
+  --color-studio-overlay: oklch(19% 0.007 260);       /* #1B1E25 */
+  --color-studio-border-subtle: oklch(22% 0.008 260); /* #222631 */
+  --color-studio-border-strong: oklch(34% 0.012 258); /* #3A4050 */
+  --color-studio-text-primary: oklch(94% 0.005 240);  /* #E8ECF2 */
+  --color-studio-text-secondary: oklch(70% 0.014 250);/* #9BA3B5 */
+  --color-studio-text-muted: oklch(48% 0.014 254);    /* #5C6478 */
+
+  /* Page mode — warm reading surface */
+  --color-page-base: oklch(15% 0.012 50);             /* #1A1612 */
+  --color-page-raised: oklch(18% 0.013 60);           /* #22201B */
+  --color-page-overlay: oklch(22% 0.015 60);          /* #2C2922 */
+  --color-page-border-subtle: oklch(24% 0.012 65);    /* #332F28 */
+  --color-page-border-strong: oklch(32% 0.014 70);    /* #4A4438 */
+  --color-page-text-primary: oklch(94% 0.018 80);     /* #F4EDE0 */
+  --color-page-text-secondary: oklch(75% 0.018 75);   /* #B5AC9C */
+  --color-page-text-muted: oklch(52% 0.014 70);       /* #7A7264 */
+
+  /* Shared accent — warm amber, brand continuity across modes */
+  --color-accent-primary: oklch(67% 0.135 60);        /* #C9893E */
+  --color-accent-glow: oklch(76% 0.140 65);           /* #E5A85B */
+
+  /* Signal colors — feedback states */
+  --color-signal-success: oklch(72% 0.140 145);       /* #5FB877 */
+  --color-signal-warning: oklch(75% 0.110 80);        /* #D4A85F */
+  --color-signal-critical: oklch(63% 0.155 25);       /* #C75D5D */
+
+  /* Sub-agent voice colors — communicate cognitive independence visually */
+  --color-voice-redteam: oklch(60% 0.150 290);        /* #8A6FC9 — Red Team */
+  --color-voice-reviewer: oklch(73% 0.090 175);       /* #5FB8A8 — Outline Review etc. */
+}
+
+/* Default to Studio mode body. Pages explicitly opt into Page mode via class. */
+body {
+  background: var(--color-studio-base);
+  color: var(--color-studio-text-primary);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11"; /* Inter stylistic refinements */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Page mode — applied to Write view container */
+.mode-page {
+  background: var(--color-page-base);
+  color: var(--color-page-text-primary);
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.mode-page h1,
+.mode-page h2,
+.mode-page h3 {
+  font-family: var(--font-display);
+  font-feature-settings: "ss01";
+}
+
+/* Mono override for state files / code blocks */
+.mono {
+  font-family: var(--font-mono);
+}

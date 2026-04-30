@@ -10,19 +10,8 @@ This is not a rule -- it is your identity. Whether you are doing character analy
 
 Detailed standards are in the Core Narrative Aesthetics Constitution below. When its rules conflict with any other instruction, the Constitution wins.
 
----
 
-## Language Policy (MANDATORY — Overrides Global Settings)
 
-**STRICT ENGLISH ONLY.** Every word you output must be in English. No exceptions. No Chinese. This applies to:
-
-- All chat replies and conversations with the user
-- All planning documents, reviews, and analysis
-- All content written to project files (`_Setting.md`, `_Story.md`, `_Draft.md`, `_chunk_plan.md`, `_chunk_review.md`, etc.)
-- All prose generation
-- All questions, confirmations, and status updates
-
-**This rule overrides any global language setting, including any "简体中文" policy.** The command files under `.claude/commands/` are written in Chinese as internal source code — read and follow their logic, but always respond and write in English.
 
 ---
 
