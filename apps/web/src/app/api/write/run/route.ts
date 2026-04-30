@@ -65,7 +65,12 @@ export async function POST(req: NextRequest) {
       let totalInputTokens = 0;
       let totalOutputTokens = 0;
       let draftTail = "";
-      const chunkOutputs: Array<{ index: number; title: string; prose: string }> = [];
+      const chunkOutputs: Array<{
+        index: number;
+        title: string;
+        prose: string;
+        reviewFindings?: string | null;
+      }> = [];
 
       try {
         send({ type: "phase-start", phase: "write", chunkIndex: 0 });
@@ -117,10 +122,65 @@ export async function POST(req: NextRequest) {
 
           totalInputTokens += chunkInputTokens;
           totalOutputTokens += chunkOutputTokens;
+
+          // -- v1.5: Chunk Reviewer sub-agent (invisible to user, runs after WRITE) --
+          // Independent context. Doesn't see the writing conversation. Returns critique.
+          // Findings are stored in chunk metadata; not auto-applied (revision is a future
+          // enhancement that requires more orchestration).
+          let chunkReviewFindings: string | null = null;
+          try {
+            const reviewerAssembled = await assembler.assemble("chunk-review", {
+              userMessage:
+                `Review the prose below for Chunk ${chunk.index ?? i + 1}. ` +
+                `Use the 5-layer audit protocol (format / logical / prose quality / character / voice). ` +
+                `Return your prose verdict, then the structured tail.\n\n## Prose to review\n\n${chunkProse}`,
+              currentChunkIndex: (chunk.index as number) ?? i + 1,
+              premise: body.premise as never,
+              setting: body.setting as never,
+              characters: body.characters as never,
+              story: body.story as never,
+              draftTail: chunkProse, // give reviewer full prose, not last-tail
+            });
+            const reviewStream = provider.generateStream({
+              model,
+              systemPrompt: reviewerAssembled.systemPrompt,
+              userPrompt: reviewerAssembled.userPrompt,
+              temperature: reviewerAssembled.temperature,
+            });
+            let reviewText = "";
+            let reviewInputTokens = 0;
+            let reviewOutputTokens = 0;
+            for await (const piece of reviewStream) {
+              if (piece.delta) reviewText += piece.delta;
+              if (piece.inputTokens != null) reviewInputTokens = piece.inputTokens;
+              if (piece.outputTokens != null) reviewOutputTokens = piece.outputTokens;
+            }
+            chunkReviewFindings = reviewText;
+            totalInputTokens += reviewInputTokens;
+            totalOutputTokens += reviewOutputTokens;
+            send({
+              type: "chunk-review",
+              chunkIndex: (chunk.index as number) ?? i + 1,
+              findings: reviewText,
+            });
+          } catch (reviewErr) {
+            console.warn(
+              `[write/run] Chunk Reviewer failed for chunk ${chunk.index ?? i + 1}:`,
+              (reviewErr as Error).message,
+            );
+            // Reviewer failure does not block the manuscript. Surface a soft signal.
+            send({
+              type: "chunk-review-skipped",
+              chunkIndex: (chunk.index as number) ?? i + 1,
+              reason: (reviewErr as Error).message,
+            });
+          }
+
           chunkOutputs.push({
             index: (chunk.index as number) ?? i + 1,
             title: (chunk.title as string) ?? `Chunk ${i + 1}`,
             prose: chunkProse,
+            reviewFindings: chunkReviewFindings,
           });
 
           // Update draft tail (last 600 chars roughly) for next Chunk continuity
@@ -132,13 +192,59 @@ export async function POST(req: NextRequest) {
             wordCount: chunkProse.split(/\s+/).filter(Boolean).length,
           });
 
-          // Per-chunk cost update
+          // Per-chunk cost update (now includes reviewer cost too)
           const runningCost = calculateCost(model, totalInputTokens, totalOutputTokens);
           send({
             type: "cost-update",
             inputTokens: totalInputTokens,
             outputTokens: totalOutputTokens,
             totalUsd: runningCost,
+          });
+        }
+
+        // -- v1.5: Full Audit (W5) — post-Write whole-manuscript editorial pass --
+        let fullAuditFindings: string | null = null;
+        try {
+          send({ type: "phase-start", phase: "full-audit", chunkIndex: 0 });
+          const fullManuscript = chunkOutputs
+            .map((c) => `## ${c.title}\n\n${c.prose}`)
+            .join("\n\n---\n\n");
+          const auditAssembled = await assembler.assemble("full-audit", {
+            userMessage:
+              `Perform a whole-manuscript editorial audit. Check global consistency, ` +
+              `voice drift, pacing, sensory distribution, structural closure. ` +
+              `Return prioritized fix list with severity tags.\n\n## Manuscript\n\n${fullManuscript}`,
+            premise: body.premise as never,
+            setting: body.setting as never,
+            characters: body.characters as never,
+            story: body.story as never,
+          });
+          const auditStream = provider.generateStream({
+            model,
+            systemPrompt: auditAssembled.systemPrompt,
+            userPrompt: auditAssembled.userPrompt,
+            temperature: auditAssembled.temperature,
+          });
+          let auditText = "";
+          let auditInputTokens = 0;
+          let auditOutputTokens = 0;
+          for await (const piece of auditStream) {
+            if (piece.delta) auditText += piece.delta;
+            if (piece.inputTokens != null) auditInputTokens = piece.inputTokens;
+            if (piece.outputTokens != null) auditOutputTokens = piece.outputTokens;
+          }
+          fullAuditFindings = auditText;
+          totalInputTokens += auditInputTokens;
+          totalOutputTokens += auditOutputTokens;
+          send({ type: "phase-end", phase: "full-audit", chunkIndex: 0 });
+        } catch (auditErr) {
+          console.warn(
+            `[write/run] Full Audit failed:`,
+            (auditErr as Error).message,
+          );
+          send({
+            type: "full-audit-skipped",
+            reason: (auditErr as Error).message,
           });
         }
 
@@ -152,6 +258,7 @@ export async function POST(req: NextRequest) {
           totalWords,
           totalCost,
           chunks: chunkOutputs,
+          fullAuditFindings,
         });
       } catch (err) {
         send({

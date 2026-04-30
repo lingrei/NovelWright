@@ -40,10 +40,18 @@ export interface ProjectRecord {
   outlineReviewConversation?: ConversationTurn[];
   // Write-phase output
   manuscript?: {
-    chunks: Array<{ index: number; title: string; prose: string; wordCount: number }>;
+    chunks: Array<{
+      index: number;
+      title: string;
+      prose: string;
+      wordCount: number;
+      reviewFindings?: string | null;
+    }>;
     totalWords: number;
     totalCost: number;
     completedAt?: string;
+    /** v1.5: post-Write whole-manuscript editorial audit (markdown text) */
+    fullAuditFindings?: string | null;
   };
   // Cost tracking (dev-mode visible)
   costAccum?: number;
@@ -59,6 +67,11 @@ interface ProjectsStore {
   getProject: (id: string) => ProjectRecord | undefined;
   updateProject: (id: string, updater: (draft: ProjectRecord) => void) => void;
   deleteProject: (id: string) => void;
+
+  /** Duplicate a project — copies plan + (optionally) manuscript. */
+  duplicateProject: (id: string, opts?: { suffix?: string }) => ProjectRecord | undefined;
+  /** Fork a project at a specific chunk index. Plan is copied, manuscript is truncated to chunks 1..forkAtIndex-1. */
+  forkProjectAtChunk: (id: string, forkAtIndex: number) => ProjectRecord | undefined;
 
   appendTurn: (id: string, subStep: PlanSubStep, turn: ConversationTurn) => void;
   appendSubAgentTurn: (id: string, agent: "redteam" | "outline-review", turn: ConversationTurn) => void;
@@ -114,6 +127,57 @@ export const useProjectsStore = create<ProjectsStore>()(
 
       deleteProject: (id) => {
         set((s) => ({ projects: s.projects.filter((p) => p.id !== id) }));
+      },
+
+      duplicateProject: (id, opts) => {
+        const source = get().projects.find((p) => p.id === id);
+        if (!source) return undefined;
+        const now = new Date().toISOString();
+        const suffix = opts?.suffix ?? "(copy)";
+        const cloned: ProjectRecord = {
+          ...structuredClone(source),
+          id: crypto.randomUUID(),
+          title: `${source.title} ${suffix}`.trim(),
+          createdAt: now,
+          updatedAt: now,
+        };
+        set((s) => ({ projects: [cloned, ...s.projects] }));
+        return cloned;
+      },
+
+      forkProjectAtChunk: (id, forkAtIndex) => {
+        const source = get().projects.find((p) => p.id === id);
+        if (!source) return undefined;
+        const now = new Date().toISOString();
+
+        const cloned: ProjectRecord = structuredClone(source);
+        cloned.id = crypto.randomUUID();
+        cloned.title = `${source.title} (fork @ Chunk ${forkAtIndex})`;
+        cloned.createdAt = now;
+        cloned.updatedAt = now;
+
+        // Reset to Plan phase if mid-Write — user re-runs Write from the fork point
+        cloned.currentPhase = "plan";
+        cloned.currentPlanSubStep = "plot";
+
+        // Truncate manuscript to chunks before the fork point
+        if (cloned.manuscript) {
+          const keptChunks = cloned.manuscript.chunks.filter((c) => c.index < forkAtIndex);
+          if (keptChunks.length === 0) {
+            cloned.manuscript = undefined;
+          } else {
+            cloned.manuscript = {
+              ...cloned.manuscript,
+              chunks: keptChunks,
+              totalWords: keptChunks.reduce((sum, c) => sum + c.wordCount, 0),
+              completedAt: undefined,
+              fullAuditFindings: null,
+            };
+          }
+        }
+
+        set((s) => ({ projects: [cloned, ...s.projects] }));
+        return cloned;
       },
 
       appendTurn: (id, subStep, turn) => {

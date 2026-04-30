@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useProjectsStore } from "@/lib/stores/projects";
 import { postSSE } from "@/lib/client/sse";
+import { notify, requestPermissionIfNeeded } from "@/lib/client/notifications";
 
 interface ChunkInProgress {
   index: number;
@@ -14,6 +15,14 @@ interface ChunkInProgress {
   prose: string;
   wordCount: number;
   done: boolean;
+  reviewFindings?: string | null;
+}
+
+/** Strip the <<<NW_DATA>>>...<<<END_DATA>>> structured tail from reviewer prose for display. */
+function stripStructuredTail(text: string): string {
+  const start = text.indexOf("<<<NW_DATA>>>");
+  if (start === -1) return text.trim();
+  return text.slice(0, start).trim();
 }
 
 export default function WriteView() {
@@ -23,6 +32,7 @@ export default function WriteView() {
   const setManuscript = useProjectsStore((s) => s.setManuscript);
   const advancePhase = useProjectsStore((s) => s.advancePhase);
   const addCost = useProjectsStore((s) => s.addCost);
+  const forkProjectAtChunk = useProjectsStore((s) => s.forkProjectAtChunk);
 
   const [hydrated, setHydrated] = useState(false);
   const [chunks, setChunks] = useState<ChunkInProgress[]>([]);
@@ -75,6 +85,11 @@ export default function WriteView() {
     setIsStreaming(true);
     setError(null);
 
+    // Ask for browser notification permission early. The actual notify() fires
+    // on completion only if the tab is hidden — so the user gets pinged when
+    // they tab-away during a long Write session.
+    void requestPermissionIfNeeded();
+
     let workingChunks: ChunkInProgress[] = [];
 
     await postSSE(
@@ -113,6 +128,13 @@ export default function WriteView() {
             setChunks([...workingChunks]);
           }
         },
+        onChunkReview: (info) => {
+          const c = workingChunks.find((x) => x.index === info.chunkIndex);
+          if (c) {
+            (c as ChunkInProgress).reviewFindings = info.findings;
+            setChunks([...workingChunks]);
+          }
+        },
         onCostUpdate: ({ totalUsd }) => {
           setCostSoFar(totalUsd);
         },
@@ -120,7 +142,13 @@ export default function WriteView() {
           const completion = data as {
             totalWords: number;
             totalCost: number;
-            chunks: Array<{ index: number; title: string; prose: string }>;
+            chunks: Array<{
+              index: number;
+              title: string;
+              prose: string;
+              reviewFindings?: string | null;
+            }>;
+            fullAuditFindings?: string | null;
           };
           setIsComplete(true);
           setIsStreaming(false);
@@ -130,15 +158,23 @@ export default function WriteView() {
               title: c.title,
               prose: c.prose,
               wordCount: c.prose.split(/\s+/).filter(Boolean).length,
+              reviewFindings: c.reviewFindings ?? null,
             }));
             setManuscript(project.id, {
               chunks: manuscriptChunks,
               totalWords: completion.totalWords,
               totalCost: completion.totalCost,
               completedAt: new Date().toISOString(),
+              fullAuditFindings: completion.fullAuditFindings ?? null,
             });
             addCost(project.id, completion.totalCost);
             advancePhase(project.id, "done");
+
+            // v1.5: notify the user if they tabbed away during the long Write session
+            notify({
+              title: `${project.title}: manuscript complete`,
+              body: `${completion.totalWords.toLocaleString()} words. Click to view.`,
+            });
           }
         },
         onError: (msg) => {
@@ -170,8 +206,8 @@ export default function WriteView() {
   const wordsSoFar = chunks.reduce((s, c) => s + c.wordCount, 0);
   const progressPct = totalWordsTarget > 0 ? Math.min(100, (wordsSoFar / totalWordsTarget) * 100) : 0;
 
-  const handleExport = async () => {
-    const url = `/api/projects/${project.id}/export`;
+  const handleExport = async (format: "md" | "docx" = "md") => {
+    const url = `/api/projects/${project.id}/export?format=${format}`;
     const res = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -184,7 +220,7 @@ export default function WriteView() {
     const blob = await res.blob();
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `${project.title.replace(/[^a-z0-9]+/gi, "_")}.md`;
+    link.download = `${project.title.replace(/[^a-z0-9]+/gi, "_")}.${format}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -228,13 +264,22 @@ export default function WriteView() {
               </span>
             )}
             {isComplete && (
-              <button
-                type="button"
-                onClick={handleExport}
-                className="px-4 py-1.5 rounded-md bg-[var(--color-accent-primary)] text-[var(--color-studio-base)] text-xs font-medium hover:bg-[var(--color-accent-glow)] transition-colors"
-              >
-                Export Markdown
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleExport("md")}
+                  className="px-3 py-1.5 rounded-md border border-[var(--color-page-border-strong)] text-[var(--color-page-text-primary)] text-xs font-medium hover:border-[var(--color-accent-primary)] transition-colors"
+                >
+                  Markdown
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport("docx")}
+                  className="px-3 py-1.5 rounded-md bg-[var(--color-accent-primary)] text-[var(--color-studio-base)] text-xs font-medium hover:bg-[var(--color-accent-glow)] transition-colors"
+                >
+                  Word .docx
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -290,13 +335,27 @@ export default function WriteView() {
           )}
 
           {chunks.map((c, i) => (
-            <section key={c.index} className="mb-16">
-              <h2
-                className="text-3xl mb-8 font-medium text-[var(--color-page-text-primary)]"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                {c.title}
-              </h2>
+            <section key={c.index} className="mb-16 group/chunk relative">
+              <div className="flex items-baseline justify-between mb-8 gap-6">
+                <h2
+                  className="text-3xl font-medium text-[var(--color-page-text-primary)]"
+                  style={{ fontFamily: "var(--font-display)" }}
+                >
+                  {c.title}
+                </h2>
+                {isComplete && project && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cloned = forkProjectAtChunk(project.id, c.index);
+                      if (cloned) router.push(`/app/projects/${cloned.id}/plan`);
+                    }}
+                    className="text-xs italic text-[var(--color-page-text-muted)] hover:text-[var(--color-accent-primary)] opacity-0 group-hover/chunk:opacity-100 transition-opacity shrink-0"
+                  >
+                    Fork from here →
+                  </button>
+                )}
+              </div>
               <div
                 className="prose prose-lg max-w-none text-[var(--color-page-text-primary)] leading-[1.75]"
                 style={{ fontFamily: "var(--font-serif)" }}
@@ -330,14 +389,81 @@ export default function WriteView() {
                   ? ` API cost: $${project.manuscript.totalCost.toFixed(4)}.`
                   : ""}
               </p>
-              <button
-                type="button"
-                onClick={handleExport}
-                className="px-8 py-3 rounded-md bg-[var(--color-accent-primary)] text-[var(--color-studio-base)] font-medium hover:bg-[var(--color-accent-glow)] transition-colors"
-              >
-                Export as Markdown
-              </button>
+              <div className="inline-flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleExport("docx")}
+                  className="px-8 py-3 rounded-md bg-[var(--color-accent-primary)] text-[var(--color-studio-base)] font-medium hover:bg-[var(--color-accent-glow)] transition-colors"
+                >
+                  Export as Word .docx
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport("md")}
+                  className="px-6 py-3 rounded-md border border-[var(--color-page-border-strong)] text-[var(--color-page-text-primary)] hover:border-[var(--color-accent-primary)] transition-colors"
+                >
+                  Markdown
+                </button>
+              </div>
             </motion.div>
+          )}
+
+          {/* v1.5: Editorial notes — surfaces post-Write findings from sub-agents */}
+          {isComplete && (project.manuscript?.fullAuditFindings ||
+            chunks.some((c) => c.reviewFindings)) && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.6 }}
+              className="mt-16 pt-12 border-t border-[var(--color-page-border-subtle)]"
+            >
+              <h3
+                className="text-2xl mb-2 text-[var(--color-page-text-primary)]"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                Editorial notes
+              </h3>
+              <p className="text-sm text-[var(--color-page-text-muted)] mb-8 italic">
+                Independent reviewers read the manuscript in isolated contexts. These notes are
+                their critique. They are not auto-applied.
+              </p>
+
+              {project.manuscript?.fullAuditFindings && (
+                <details className="mb-6 group" open>
+                  <summary className="cursor-pointer flex items-center gap-2 text-sm font-medium text-[var(--color-voice-reviewer)] mb-3 list-none">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-voice-reviewer)]" />
+                    <span className="uppercase tracking-wider text-xs">Full Audit (whole manuscript)</span>
+                    <span className="ml-auto text-[var(--color-page-text-muted)] text-xs group-open:rotate-180 transition-transform">▾</span>
+                  </summary>
+                  <div
+                    className="text-[15px] leading-relaxed text-[var(--color-page-text-primary)] whitespace-pre-wrap pl-4 border-l-2 border-[var(--color-voice-reviewer)]/40"
+                    style={{ fontFamily: "var(--font-serif)" }}
+                  >
+                    {stripStructuredTail(project.manuscript.fullAuditFindings)}
+                  </div>
+                </details>
+              )}
+
+              {chunks
+                .filter((c) => c.reviewFindings)
+                .map((c) => (
+                  <details key={c.index} className="mb-4 group">
+                    <summary className="cursor-pointer flex items-center gap-2 text-sm font-medium text-[var(--color-voice-reviewer)] mb-2 list-none">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-voice-reviewer)]" />
+                      <span className="uppercase tracking-wider text-xs">
+                        Chunk {c.index} review · {c.title}
+                      </span>
+                      <span className="ml-auto text-[var(--color-page-text-muted)] text-xs group-open:rotate-180 transition-transform">▾</span>
+                    </summary>
+                    <div
+                      className="text-[14px] leading-relaxed text-[var(--color-page-text-primary)] whitespace-pre-wrap pl-4 border-l-2 border-[var(--color-voice-reviewer)]/30"
+                      style={{ fontFamily: "var(--font-serif)" }}
+                    >
+                      {stripStructuredTail(c.reviewFindings ?? "")}
+                    </div>
+                  </details>
+                ))}
+            </motion.section>
           )}
         </article>
       </div>

@@ -9,6 +9,8 @@ import type { Phase, PlanSubStep } from "@novelwright/types";
 export default function ProjectsHub() {
   const projects = useProjectsStore((s) => s.projects);
   const createProject = useProjectsStore((s) => s.createProject);
+  const duplicateProject = useProjectsStore((s) => s.duplicateProject);
+  const deleteProject = useProjectsStore((s) => s.deleteProject);
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -117,40 +119,131 @@ export default function ProjectsHub() {
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {projects.map((p) => (
-              <Link
+              <ProjectCard
                 key={p.id}
-                href={
-                  p.currentPhase === "plan"
-                    ? `/app/projects/${p.id}/plan`
-                    : `/app/projects/${p.id}/write`
-                }
-                className="group block p-6 bg-[var(--color-studio-raised)] border border-[var(--color-studio-border-subtle)] rounded-lg hover:border-[var(--color-accent-primary)] transition-colors"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs uppercase tracking-wider text-[var(--color-accent-primary)]">
-                    {p.currentPhase === "plan"
-                      ? `Plan · ${p.currentPlanSubStep}`
-                      : p.currentPhase === "write"
-                      ? "Writing"
-                      : "Done"}
-                  </span>
-                  <span className="text-xs text-[var(--color-studio-text-muted)]">
-                    {formatDate(p.updatedAt)}
-                  </span>
-                </div>
-                <h3
-                  className="text-xl mb-3 group-hover:text-[var(--color-accent-primary)] transition-colors"
-                  style={{ fontFamily: "var(--font-display)" }}
-                >
-                  {p.title}
-                </h3>
-                <ProgressStrip phase={p.currentPhase} subStep={p.currentPlanSubStep} />
-              </Link>
+                project={p}
+                onDuplicate={() => {
+                  const cloned = duplicateProject(p.id);
+                  if (cloned) router.push(
+                    cloned.currentPhase === "plan"
+                      ? `/app/projects/${cloned.id}/plan`
+                      : `/app/projects/${cloned.id}/write`,
+                  );
+                }}
+                onDelete={() => {
+                  if (confirm(`Delete "${p.title}"? This cannot be undone.`)) {
+                    deleteProject(p.id);
+                  }
+                }}
+                onOpen={() => {
+                  router.push(
+                    p.currentPhase === "plan"
+                      ? `/app/projects/${p.id}/plan`
+                      : `/app/projects/${p.id}/write`,
+                  );
+                }}
+              />
             ))}
           </div>
         )}
       </div>
     </main>
+  );
+}
+
+function ProjectCard({
+  project,
+  onDuplicate,
+  onDelete,
+  onOpen,
+}: {
+  project: ReturnType<typeof useProjectsStore.getState>["projects"][number];
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onOpen: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    const diffH = (Date.now() - d.getTime()) / (1000 * 60 * 60);
+    if (diffH < 1) return "just now";
+    if (diffH < 24) return `${Math.floor(diffH)}h ago`;
+    return d.toLocaleDateString();
+  };
+
+  return (
+    <div className="relative group">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="w-full text-left p-6 bg-[var(--color-studio-raised)] border border-[var(--color-studio-border-subtle)] rounded-lg hover:border-[var(--color-accent-primary)] transition-colors"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs uppercase tracking-wider text-[var(--color-accent-primary)]">
+            {project.currentPhase === "plan"
+              ? `Plan · ${project.currentPlanSubStep}`
+              : project.currentPhase === "write"
+              ? "Writing"
+              : "Done"}
+          </span>
+          <span className="text-xs text-[var(--color-studio-text-muted)]">
+            {formatDate(project.updatedAt)}
+          </span>
+        </div>
+        <h3
+          className="text-xl mb-3 text-[var(--color-studio-text-primary)] group-hover:text-[var(--color-accent-primary)] transition-colors"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {project.title}
+        </h3>
+        <ProgressStrip phase={project.currentPhase} subStep={project.currentPlanSubStep} />
+      </button>
+
+      {/* Menu trigger — invisible until hover */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setMenuOpen((v) => !v);
+        }}
+        className="absolute top-3 right-3 w-8 h-8 rounded-md flex items-center justify-center text-[var(--color-studio-text-muted)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-studio-overlay)] hover:text-[var(--color-studio-text-primary)] transition-opacity"
+        aria-label="Project actions"
+      >
+        ⋯
+      </button>
+
+      {menuOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setMenuOpen(false)}
+            aria-hidden
+          />
+          <div className="absolute top-12 right-3 z-50 min-w-[180px] bg-[var(--color-studio-overlay)] border border-[var(--color-studio-border-strong)] rounded-md shadow-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                onDuplicate();
+              }}
+              className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-studio-text-primary)] hover:bg-[var(--color-studio-raised)]"
+            >
+              Duplicate project
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                onDelete();
+              }}
+              className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-signal-critical)] hover:bg-[var(--color-studio-raised)]"
+            >
+              Delete project
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

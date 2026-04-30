@@ -15,6 +15,7 @@ export interface SSEHandlers {
   onPhaseEnd?: (phase: string, chunkIndex?: number) => void;
   onChunkStart?: (info: { chunkIndex: number; title: string; targetWords: number }) => void;
   onChunkEnd?: (info: { chunkIndex: number; wordCount: number }) => void;
+  onChunkReview?: (info: { chunkIndex: number; findings: string }) => void;
   onCostUpdate?: (info: { inputTokens: number; outputTokens: number; totalUsd: number }) => void;
   onComplete?: (data: unknown) => void;
   onError?: (message: string) => void;
@@ -93,6 +94,17 @@ function dispatch(event: unknown, handlers: SSEHandlers) {
         chunkIndex: e.chunkIndex as number,
         wordCount: e.wordCount as number,
       });
+      break;
+    case "chunk-review":
+      handlers.onChunkReview?.({
+        chunkIndex: e.chunkIndex as number,
+        findings: e.findings as string,
+      });
+      break;
+    case "chunk-review-skipped":
+    case "full-audit-skipped":
+      // Soft signals — not surfaced as user errors. Logged for observability only.
+      console.warn(`[SSE] ${e.type}:`, e);
       break;
     case "cost-update":
       handlers.onCostUpdate?.({
