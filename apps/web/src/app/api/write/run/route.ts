@@ -15,12 +15,6 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { calculateCost } from "@novelwright/llm-adapter";
-import {
-  CharacterSchema,
-  PremiseSchema,
-  SettingSchema,
-  StorySchema,
-} from "@novelwright/types";
 import { getPromptAssembler } from "@/lib/server/assembler";
 import { getLLMProvider } from "@/lib/server/llm";
 
@@ -29,10 +23,14 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300; // Vercel cap; for genuinely long projects we'd move to Fly.io (v1.5).
 
 const RequestSchema = z.object({
-  premise: PremiseSchema.partial(),
-  setting: SettingSchema.partial(),
-  characters: z.array(CharacterSchema.partial()),
-  story: StorySchema.partial(),
+  premise: z.unknown(),
+  setting: z.unknown(),
+  characters: z.unknown(),
+  story: z
+    .object({
+      chunks: z.array(z.unknown()).optional(),
+    })
+    .passthrough(),
 });
 
 export async function POST(req: NextRequest) {
@@ -72,16 +70,16 @@ export async function POST(req: NextRequest) {
       try {
         send({ type: "phase-start", phase: "write", chunkIndex: 0 });
 
-        const chunks = body.story.chunks ?? [];
+        const chunks = (body.story.chunks ?? []) as Array<Record<string, unknown>>;
         for (let i = 0; i < chunks.length; i++) {
           const chunk = chunks[i];
           if (!chunk) continue;
 
           send({
             type: "chunk-start",
-            chunkIndex: chunk.index ?? i + 1,
-            title: chunk.title ?? `Chunk ${i + 1}`,
-            targetWords: chunk.targetWords ?? 2000,
+            chunkIndex: (chunk.index as number) ?? i + 1,
+            title: (chunk.title as string) ?? `Chunk ${i + 1}`,
+            targetWords: (chunk.targetWords as number) ?? 2000,
           });
 
           // Build a per-Chunk write-prose prompt with the chunk's plan + draft tail for continuity
@@ -89,7 +87,7 @@ export async function POST(req: NextRequest) {
 
           const assembled = await assembler.assemble("write-prose", {
             userMessage,
-            currentChunkIndex: chunk.index ?? i + 1,
+            currentChunkIndex: (chunk.index as number) ?? i + 1,
             premise: body.premise as never,
             setting: body.setting as never,
             characters: body.characters as never,
@@ -120,8 +118,8 @@ export async function POST(req: NextRequest) {
           totalInputTokens += chunkInputTokens;
           totalOutputTokens += chunkOutputTokens;
           chunkOutputs.push({
-            index: chunk.index ?? i + 1,
-            title: chunk.title ?? `Chunk ${i + 1}`,
+            index: (chunk.index as number) ?? i + 1,
+            title: (chunk.title as string) ?? `Chunk ${i + 1}`,
             prose: chunkProse,
           });
 
@@ -130,7 +128,7 @@ export async function POST(req: NextRequest) {
 
           send({
             type: "chunk-end",
-            chunkIndex: chunk.index ?? i + 1,
+            chunkIndex: (chunk.index as number) ?? i + 1,
             wordCount: chunkProse.split(/\s+/).filter(Boolean).length,
           });
 
@@ -177,7 +175,6 @@ export async function POST(req: NextRequest) {
 }
 
 function buildChunkUserMessage(chunk: unknown, draftTail: string, index: number): string {
-  // typed loosely on purpose — schema is partial; we serialize whatever fields are present
   const c = chunk as Record<string, unknown>;
   const parts: string[] = [];
   parts.push(`# Write Chunk ${(c.index as number) ?? index + 1}: ${(c.title as string) ?? "Untitled"}`);

@@ -7,15 +7,14 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { runStageSSE } from "@/lib/server/stage-runner";
-import { CharacterSchema, PremiseSchema, SettingSchema } from "@novelwright/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const RequestSchema = z.object({
-  premise: PremiseSchema.partial(),
-  setting: SettingSchema.partial(),
-  characters: z.array(CharacterSchema.partial()),
+  premise: z.unknown(),
+  setting: z.unknown(),
+  characters: z.unknown(),
 });
 
 export async function POST(req: NextRequest) {

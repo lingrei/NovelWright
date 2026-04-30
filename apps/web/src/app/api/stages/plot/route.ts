@@ -1,13 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { runStageSSE } from "@/lib/server/stage-runner";
-import {
-  CharacterSchema,
-  ConversationTurnSchema,
-  PremiseSchema,
-  SettingSchema,
-  StorySchema,
-} from "@novelwright/types";
+import { ConversationTurnSchema } from "@novelwright/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,10 +9,10 @@ export const dynamic = "force-dynamic";
 const RequestSchema = z.object({
   userMessage: z.string().min(1),
   conversationHistory: z.array(ConversationTurnSchema).optional(),
-  premise: PremiseSchema.partial().optional(),
-  setting: SettingSchema.partial().optional(),
-  characters: z.array(CharacterSchema.partial()).optional(),
-  story: StorySchema.partial().optional(),
+  premise: z.unknown().optional(),
+  setting: z.unknown().optional(),
+  characters: z.unknown().optional(),
+  story: z.unknown().optional(),
 });
 
 export async function POST(req: NextRequest) {

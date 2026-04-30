@@ -5,15 +5,19 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { runStageSSE } from "@/lib/server/stage-runner";
-import { ConversationTurnSchema, PremiseSchema } from "@novelwright/types";
+import { ConversationTurnSchema } from "@novelwright/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Loose validation: artifacts are typed end-to-end on the client; we don't
+// re-validate their internal structure on the wire. Strict nested schemas
+// cause 400s when a partially-built artifact has missing fields, which is the
+// normal mid-construction state.
 const RequestSchema = z.object({
   userMessage: z.string().min(1),
   conversationHistory: z.array(ConversationTurnSchema).optional(),
-  premise: PremiseSchema.partial().optional(),
+  premise: z.unknown().optional(),
 });
 
 export async function POST(req: NextRequest) {
