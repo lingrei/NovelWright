@@ -9,11 +9,12 @@ interface CanvasPaneProps {
 }
 
 /**
- * The Canvas pane — center column of Plan view. Shows the artifact being built.
+ * The Canvas pane — LEFT column of Plan view (v1.1+).
+ * Fixed-width rail. Only its own content scrolls; horizontal content wraps.
  */
 export function CanvasPane({ subStep, project }: CanvasPaneProps) {
   return (
-    <section className="overflow-y-auto px-8 py-8 bg-[var(--color-studio-base)]">
+    <section className="vibe-scroll overflow-y-auto overflow-x-hidden px-5 py-6 bg-[var(--color-studio-base)] [&_*]:break-words">
       {subStep === "idea" && <IdeaCanvas project={project} />}
       {subStep === "world" && <WorldCanvas project={project} />}
       {subStep === "characters" && <CharactersCanvas project={project} />}
@@ -37,7 +38,7 @@ function IdeaCanvas({ project }: { project: ProjectRecord }) {
   const populated = fields.filter((f) => premise?.[f.key]).length;
 
   return (
-    <div className="max-w-2xl">
+    <div className="w-full">
       <CanvasHeader label="Premise Card" title="The seed of the story">
         {populated}/{fields.length} fields shaped — fills in as you and the agent talk.
       </CanvasHeader>
@@ -66,7 +67,7 @@ function WorldCanvas({ project }: { project: ProjectRecord }) {
   const voice = setting?.narrativeVoice;
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full">
       <CanvasHeader label="Setting Codex" title="The world this story needs">
         {rules.length} {rules.length === 1 ? "rule" : "rules"} derived
         {voice?.narrator ? ` · voice: ${voice.narrator}` : ""}
@@ -154,7 +155,7 @@ function CharactersCanvas({ project }: { project: ProjectRecord }) {
   const characters = (project.characters ?? []) as Character[];
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full">
       <CanvasHeader label="Character Cards" title="The people inside this story">
         {characters.length} {characters.length === 1 ? "character" : "characters"} designed
       </CanvasHeader>
@@ -246,7 +247,7 @@ function PlotCanvas({ project }: { project: ProjectRecord }) {
   const chunks = (story?.chunks ?? []) as Chunk[];
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
       <CanvasHeader label="Chunk Timeline" title={story?.spine?.arcShape ?? "Plot structure"}>
         {chunks.length} {chunks.length === 1 ? "chunk" : "chunks"}
         {story?.spine?.timeline ? ` · ${story.spine.timeline}` : ""}
@@ -254,7 +255,7 @@ function PlotCanvas({ project }: { project: ProjectRecord }) {
 
       {story?.spine?.corePremise && (
         <p
-          className="text-sm italic text-[var(--color-studio-text-secondary)] mb-6 max-w-2xl leading-relaxed"
+          className="text-sm italic text-[var(--color-studio-text-secondary)] mb-6 leading-relaxed"
           style={{ fontFamily: "var(--font-serif)" }}
         >
           {story.spine.corePremise}

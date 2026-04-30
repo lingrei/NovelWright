@@ -9,13 +9,15 @@ import type { LLMProvider, LLMStreamChunk, ProviderConfig } from "../types";
  * - SystemPrompt is mapped to systemInstruction at model construction time.
  * - Conversation history is mapped to chat history (alternating user/model turns).
  * - Streaming uses generateContentStream which yields chunks with text() accessor.
- * - Transient 503/429/UNAVAILABLE errors auto-retry with exponential backoff.
- *   Google's flagship models often hit demand spikes; this keeps the user flow alive.
+ * - Transient 503/429/UNAVAILABLE errors trigger silent fallback through a model chain.
+ *   Default chain: 2.5-pro → 3-pro → 3-flash → 2.5-flash, 2 full cycles before surfacing error.
  */
 export class GeminiProvider implements LLMProvider {
   readonly name = "gemini";
   private readonly client: GoogleGenerativeAI;
   private readonly defaultModel: string;
+  private readonly fallbackChain: string[];
+  private readonly fallbackCycles: number;
 
   constructor(config: ProviderConfig) {
     if (!config.apiKey || config.apiKey.trim() === "") {
@@ -23,10 +25,37 @@ export class GeminiProvider implements LLMProvider {
     }
     this.client = new GoogleGenerativeAI(config.apiKey);
     this.defaultModel = config.defaultModel ?? "gemini-2.5-pro";
+    this.fallbackChain = config.fallbackChain ?? [
+      "gemini-2.5-pro",
+      "gemini-3-pro",
+      "gemini-3-flash",
+      "gemini-2.5-flash",
+    ];
+    this.fallbackCycles = config.fallbackCycles ?? 2;
+  }
+
+  /** Builds the chain to attempt for a given request, starting from the requested model if it's in the chain. */
+  private buildAttemptChain(requestedModel: string | undefined): string[] {
+    const requested = requestedModel || this.defaultModel;
+    const chain = [...this.fallbackChain];
+    // If the requested model is in the chain, rotate it to the front so we try it first.
+    const idx = chain.indexOf(requested);
+    if (idx > 0) {
+      const rotated = chain.slice(idx).concat(chain.slice(0, idx));
+      return rotated;
+    }
+    if (idx === -1) {
+      // Requested model isn't in chain — try it first, then fall back to chain
+      return [requested, ...chain];
+    }
+    return chain;
   }
 
   async generate(request: LLMRequest): Promise<LLMResponse> {
-    return withRetry(() => this.generateOnce(request));
+    const chain = this.buildAttemptChain(request.model);
+    return withModelChain(chain, this.fallbackCycles, (model) =>
+      this.generateOnce({ ...request, model }),
+    );
   }
 
   private async generateOnce(request: LLMRequest): Promise<LLMResponse> {
@@ -73,9 +102,12 @@ export class GeminiProvider implements LLMProvider {
   }
 
   async *generateStream(request: LLMRequest): AsyncIterable<LLMStreamChunk> {
-    // Retry the *initial* stream creation only (where 503s happen).
-    // Once tokens start flowing we don't restart — partial output is delivered.
-    const stream = await withRetry(() => this.openStream(request));
+    // Try each model in the fallback chain. Once a stream's first byte arrives,
+    // we commit to that model — partial output is delivered, not restarted.
+    const chain = this.buildAttemptChain(request.model);
+    const stream = await withModelChain(chain, this.fallbackCycles, (model) =>
+      this.openStream({ ...request, model }),
+    );
 
     let lastInputTokens: number | undefined;
     let lastOutputTokens: number | undefined;
@@ -145,24 +177,48 @@ function mapFinishReason(reason: string | undefined): "stop" | "max_tokens" | "s
 }
 
 /**
- * Retry transient Google API errors (503 high demand, 429 rate limit, UNAVAILABLE).
- * Exponential backoff: ~1.5s, ~3s, ~6s. Surfaces non-transient errors immediately.
+ * Try a fallback chain of models, cycling through up to `cycles` times.
+ *
+ * On retriable error (503/429/UNAVAILABLE/etc): silently move to the next model.
+ * On non-retriable error (auth, malformed request, safety block): surface immediately.
+ *
+ * After exhausting all models × cycles, throws the last retriable error.
+ *
+ * Brief delay between model attempts (300ms) and longer delay between cycles (2s)
+ * gives Google's load-balancers a chance to recover.
  */
-async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
+async function withModelChain<T>(
+  models: string[],
+  cycles: number,
+  fn: (model: string) => Promise<T>,
+): Promise<T> {
   let lastErr: unknown = null;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastErr = err;
-      if (!isRetriable(err) || attempt === maxAttempts - 1) {
-        throw err;
+  for (let cycle = 0; cycle < cycles; cycle++) {
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i]!;
+      try {
+        return await fn(model);
+      } catch (err) {
+        lastErr = err;
+        if (!isRetriable(err)) {
+          throw err;
+        }
+        // Brief inter-model delay (Google load balancers prefer this over hammering).
+        if (i < models.length - 1 || cycle < cycles - 1) {
+          await sleep(300 + Math.random() * 200);
+        }
       }
-      const delayMs = 1500 * Math.pow(2, attempt) + Math.random() * 500;
-      await new Promise((r) => setTimeout(r, delayMs));
+    }
+    // Cycle complete — slightly longer pause before retrying the chain.
+    if (cycle < cycles - 1) {
+      await sleep(1800 + Math.random() * 600);
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error("Retry exhausted");
+  throw lastErr instanceof Error ? lastErr : new Error("Model fallback chain exhausted");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 function isRetriable(err: unknown): boolean {

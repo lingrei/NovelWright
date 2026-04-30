@@ -249,7 +249,7 @@ export default function WriteView() {
         )}
       </header>
 
-      <div ref={scrollRef} className="overflow-y-auto pb-32">
+      <div ref={scrollRef} className="vibe-scroll mode-page overflow-y-auto pb-32">
         <article className="max-w-2xl mx-auto px-8 py-16">
           {chunks.length === 0 && !error && (
             <div className="flex flex-col items-center justify-center py-24 text-center">

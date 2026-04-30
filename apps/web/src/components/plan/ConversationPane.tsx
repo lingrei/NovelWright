@@ -69,12 +69,15 @@ export function ConversationPane({
   const isEmpty = visibleConversation.length === 0 && !isStreaming;
 
   return (
-    <section className="flex flex-col border-r border-[var(--color-studio-border-subtle)] overflow-hidden">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8">
+    <section className="flex flex-col h-full overflow-hidden">
+      <div
+        ref={scrollRef}
+        className="vibe-scroll flex-1 overflow-y-auto overflow-x-hidden px-8 py-10 [&_*]:break-words [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_code]:break-words"
+      >
         {isEmpty && (
-          <div className="max-w-md">
+          <div className="max-w-xl mx-auto">
             <h2
-              className="text-xl mb-3 text-[var(--color-studio-text-primary)]"
+              className="text-2xl mb-3 text-[var(--color-studio-text-primary)]"
               style={{ fontFamily: "var(--font-display)" }}
             >
               {greeting.title}
@@ -88,7 +91,7 @@ export function ConversationPane({
           </div>
         )}
 
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-3xl mx-auto pb-32">
           {visibleConversation.map((turn) => (
             <Turn key={turn.id} turn={turn} />
           ))}

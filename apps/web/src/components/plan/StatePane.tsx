@@ -13,7 +13,7 @@ interface StatePaneProps {
  */
 export function StatePane({ subStep, project }: StatePaneProps) {
   return (
-    <aside className="border-l border-[var(--color-studio-border-subtle)] px-5 py-6 bg-[var(--color-studio-base)] overflow-y-auto">
+    <aside className="vibe-scroll px-4 py-6 bg-[var(--color-studio-base)] overflow-y-auto overflow-x-hidden [&_*]:break-words">
       <p className="text-xs uppercase tracking-wider text-[var(--color-studio-text-muted)] mb-4">
         State
       </p>

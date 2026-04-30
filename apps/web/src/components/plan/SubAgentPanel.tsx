@@ -83,7 +83,7 @@ export function SubAgentPanel({
         <p className="text-xs text-[var(--color-studio-text-secondary)] mt-1">{meta.tagline}</p>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div className="vibe-scroll flex-1 overflow-y-auto overflow-x-hidden px-6 py-6 [&_*]:break-words [&_pre]:whitespace-pre-wrap [&_pre]:break-words">
         {state === "activating" && <ActivationCinematic accent={accent} />}
 
         {state !== "activating" && (

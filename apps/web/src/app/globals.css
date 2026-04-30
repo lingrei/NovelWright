@@ -77,3 +77,58 @@ body {
 .mono {
   font-family: var(--font-mono);
 }
+
+/* ============================================================================
+ * Custom scrollbar — matches Studio chrome aesthetic.
+ * Apply `vibe-scroll` class on any container that scrolls.
+ * The track is transparent, thumb is subtle border-strong, hover is amber.
+ * ============================================================================ */
+
+.vibe-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-studio-border-strong) transparent;
+}
+
+.vibe-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.vibe-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.vibe-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-studio-border-strong);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 200ms ease;
+}
+
+.vibe-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent-primary);
+  background-clip: padding-box;
+}
+
+.vibe-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Page-mode variant (for Write view) */
+.mode-page .vibe-scroll,
+.vibe-scroll.mode-page {
+  scrollbar-color: var(--color-page-border-strong) transparent;
+}
+
+.mode-page .vibe-scroll::-webkit-scrollbar-thumb,
+.vibe-scroll.mode-page::-webkit-scrollbar-thumb {
+  background: var(--color-page-border-strong);
+  background-clip: padding-box;
+}
+
+.mode-page .vibe-scroll::-webkit-scrollbar-thumb:hover,
+.vibe-scroll.mode-page::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent-primary);
+  background-clip: padding-box;
+}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useProjectsStore } from "@/lib/stores/projects";
 import { PlanRail } from "@/components/plan/PlanRail";
@@ -10,6 +10,7 @@ import { ConversationPane } from "@/components/plan/ConversationPane";
 import { CanvasPane } from "@/components/plan/CanvasPane";
 import { StatePane } from "@/components/plan/StatePane";
 import { SubAgentPanel } from "@/components/plan/SubAgentPanel";
+import { StageTransition } from "@/components/plan/StageTransition";
 import { GateBar } from "@/components/plan/GateBar";
 import { postSSE } from "@/lib/client/sse";
 import type { ConversationTurn, PlanSubStep } from "@novelwright/types";
@@ -55,10 +56,32 @@ export default function PlanView() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [subAgent, setSubAgent] = useState<SubAgentRunState | null>(null);
   const [transitioning, setTransitioning] = useState(false);
+  const [stageTransition, setStageTransition] = useState<{
+    active: boolean;
+    from: PlanSubStep | null;
+    to: PlanSubStep | null;
+  }>({ active: false, from: null, to: null });
+  const previousSubStepRef = useRef<PlanSubStep | null>(null);
 
   useEffect(() => {
     setHydrated(true);
   }, []);
+
+  // Sub-step transition ceremony — fires on each sub-step change.
+  useEffect(() => {
+    if (!hydrated || !project) return;
+    const current = project.currentPlanSubStep;
+    const prev = previousSubStepRef.current;
+    if (prev !== null && prev !== current) {
+      setStageTransition({ active: true, from: prev, to: current });
+      const t = setTimeout(() => {
+        setStageTransition({ active: false, from: null, to: null });
+      }, 1500);
+      previousSubStepRef.current = current;
+      return () => clearTimeout(t);
+    }
+    previousSubStepRef.current = current;
+  }, [hydrated, project?.currentPlanSubStep, project]);
 
   const subStep = project?.currentPlanSubStep ?? "idea";
   const conversation = project?.conversations[subStep] ?? [];
@@ -265,9 +288,16 @@ export default function PlanView() {
   // -- Compute current sub-step CTA inline (closures over runSubAgent + advanceSubStep) --
   const cta = computeCTA();
 
-  function computeCTA():
-    | { label: string; onClick: () => void; disabled?: boolean; hint?: string | null }
-    | null {
+  type CTADescriptor = {
+    label: string;
+    onClick: () => void;
+    disabled?: boolean;
+    hint?: string | null;
+    /** Visual accent for the CTA dot. "amber" = in-stage transition, "purple" = Red Team, "teal" = Outline Review. */
+    accent?: "amber" | "purple" | "teal";
+  };
+
+  function computeCTA(): CTADescriptor | null {
     if (subAgent) return null; // sub-agent panel takes over
     const p = project!;
 
@@ -283,6 +313,7 @@ export default function PlanView() {
         disabled: !ready,
         hint: ready ? null : "Need all four premise fields shaped first.",
         onClick: () => advanceSubStep(p.id, "world"),
+        accent: "amber",
       };
     }
 
@@ -293,6 +324,7 @@ export default function PlanView() {
         disabled: !hasRules,
         hint: hasRules ? null : "Need at least one world rule derived first.",
         onClick: () => advanceSubStep(p.id, "characters"),
+        accent: "amber",
       };
     }
 
@@ -300,22 +332,25 @@ export default function PlanView() {
       const charsReady = (p.characters ?? []).filter((c) => c.name && c.role).length >= 1;
       if (!p.redTeamReport && charsReady) {
         return {
-          label: "Run Red Team review",
+          label: "Continue to Red Team review",
           hint: "Independent destructive critique by a separate AI context.",
           onClick: () => runSubAgent("redteam"),
+          accent: "purple",
         };
       }
       if (p.redTeamReport) {
         return {
           label: "Continue to Plot",
           onClick: () => advanceSubStep(p.id, "plot"),
+          accent: "amber",
         };
       }
       return {
-        label: "Run Red Team review",
+        label: "Continue to Red Team review",
         disabled: true,
         hint: "Need at least one character with name + role first.",
         onClick: () => {},
+        accent: "purple",
       };
     }
 
@@ -323,19 +358,21 @@ export default function PlanView() {
       const hasChunks = (p.story?.chunks?.length ?? 0) >= 1;
       if (!p.outlineReviewReport && hasChunks) {
         return {
-          label: "Run Outline Review",
+          label: "Continue to Outline review",
           hint: "Independent Producer + Editor verdict.",
           onClick: () => runSubAgent("outline-review"),
+          accent: "teal",
         };
       }
       if (p.outlineReviewReport) {
         return null; // GateBar takes over below
       }
       return {
-        label: "Run Outline Review",
+        label: "Continue to Outline review",
         disabled: true,
         hint: "Need at least one Chunk defined first.",
         onClick: () => {},
+        accent: "teal",
       };
     }
 
@@ -362,20 +399,27 @@ export default function PlanView() {
         </div>
       </header>
 
-      <div className="flex-1 grid grid-cols-[minmax(360px,30%)_1fr_minmax(280px,25%)] overflow-hidden relative">
-        <ConversationPane
-          subStep={subStep}
-          conversation={conversation}
-          streamingContent={streamingTurn}
-          isStreaming={isStreaming}
-          onSend={handleSend}
-        />
-        <div className="relative overflow-hidden">
-          <CanvasPane subStep={subStep} project={project} />
+      {/*
+        Layout v1.1: chat-centered.
+        - LEFT (~25%): Canvas — fixed, scrolls only its own content if content overflows
+        - MIDDLE (~55%): Conversation — the dominant column, ONLY this scrolls with the dialogue
+        - RIGHT (~20%): State — fixed, narrow rail
+      */}
+      <div className="flex-1 grid grid-cols-[minmax(280px,25%)_1fr_minmax(240px,20%)] overflow-hidden relative">
+        <CanvasPane subStep={subStep} project={project} />
+
+        <div className="relative overflow-hidden border-x border-[var(--color-studio-border-subtle)]">
+          <ConversationPane
+            subStep={subStep}
+            conversation={conversation}
+            streamingContent={streamingTurn}
+            isStreaming={isStreaming}
+            onSend={handleSend}
+          />
 
           {cta && !subAgent && (
-            <div className="absolute bottom-0 inset-x-0 px-8 py-4 bg-gradient-to-t from-[var(--color-studio-base)] via-[var(--color-studio-base)] to-transparent">
-              <div className="flex items-center justify-end gap-3">
+            <div className="absolute bottom-[88px] inset-x-0 px-6 pt-6 pb-2 bg-gradient-to-t from-[var(--color-studio-base)] via-[var(--color-studio-base)]/95 to-transparent z-10 pointer-events-none">
+              <div className="flex items-center justify-end gap-3 pointer-events-auto">
                 {cta.hint && (
                   <p className="text-xs text-[var(--color-studio-text-muted)] mr-auto italic">
                     {cta.hint}
@@ -385,8 +429,20 @@ export default function PlanView() {
                   type="button"
                   onClick={cta.onClick}
                   disabled={cta.disabled}
-                  className="px-5 py-2.5 rounded-md bg-[var(--color-accent-primary)] text-[var(--color-studio-base)] font-medium hover:bg-[var(--color-accent-glow)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="group inline-flex items-center gap-2.5 px-5 py-2.5 rounded-md bg-[var(--color-accent-primary)] text-[var(--color-studio-base)] font-medium hover:bg-[var(--color-accent-glow)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
                 >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{
+                      backgroundColor:
+                        cta.accent === "purple"
+                          ? "var(--color-voice-redteam)"
+                          : cta.accent === "teal"
+                          ? "var(--color-voice-reviewer)"
+                          : "var(--color-studio-base)",
+                    }}
+                    aria-hidden
+                  />
                   {cta.label}
                 </button>
               </div>
@@ -419,6 +475,7 @@ export default function PlanView() {
             )}
           </AnimatePresence>
         </div>
+
         <StatePane subStep={subStep} project={project} />
       </div>
 
@@ -435,6 +492,13 @@ export default function PlanView() {
       </AnimatePresence>
 
       <AnimatePresence>{transitioning && <ModeSwitchCeremony />}</AnimatePresence>
+
+      {/* Sub-step transition ceremony (Idea -> World -> Characters -> Plot) */}
+      <StageTransition
+        active={stageTransition.active}
+        fromStep={stageTransition.from}
+        toStep={stageTransition.to}
+      />
     </main>
   );
 }

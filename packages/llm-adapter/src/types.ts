@@ -3,6 +3,17 @@ import type { LLMRequest, LLMResponse } from "@novelwright/types";
 export interface ProviderConfig {
   apiKey: string;
   defaultModel?: string;
+  /**
+   * Ordered list of models to try as fallback when the primary fails with a retriable error.
+   * Default chain (Gemini): gemini-2.5-pro -> gemini-3-pro -> gemini-3-flash -> gemini-2.5-flash.
+   * The requested model (per-call or default) is rotated to the front of the chain.
+   */
+  fallbackChain?: string[];
+  /**
+   * How many full cycles through the fallback chain before surfacing the error.
+   * Default 2.
+   */
+  fallbackCycles?: number;
 }
 
 export interface LLMStreamChunk {
