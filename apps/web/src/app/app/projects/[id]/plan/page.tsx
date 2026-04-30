@@ -23,6 +23,23 @@ interface SubAgentRunState {
   streamingContent: string;
 }
 
+/**
+ * When the user enters a new sub-step with no conversation yet, we auto-trigger the agent
+ * to open the dialogue (instead of waiting for the user to send first). The kickoff message
+ * is sent server-side but NOT appended to the visible conversation — only the agent's reply
+ * shows up.
+ *
+ * Idea stage stays manual (warm static greeting feels right for first contact).
+ */
+const KICKOFF_MESSAGES: Partial<Record<PlanSubStep, string>> = {
+  world:
+    "Begin worldbuilding. Based on the premise locked in above, open with 2-3 sharp questions that start deriving the world rules. Probe the laws of physics, society, or magic that the premise demands. Be specific — reference the premise, don't ask generic worldbuilding questions.",
+  characters:
+    "Begin character design. Based on the premise and world above, ask me about the protagonist first. Start with desire — what does the reader want to feel through them? — and then probe what makes this character irreplaceable. Reference our world rules.",
+  plot:
+    "Begin plot structure. Based on premise, world, and characters above, open by asking about the arc shape — what trajectory does the story need to traverse? Then probe the central question the plot must answer. Reference our characters specifically.",
+};
+
 export default function PlanView() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -42,6 +59,68 @@ export default function PlanView() {
   useEffect(() => {
     setHydrated(true);
   }, []);
+
+  const subStep = project?.currentPlanSubStep ?? "idea";
+  const conversation = project?.conversations[subStep] ?? [];
+
+  // Auto-kickoff: when entering World/Characters/Plot with no conversation, trigger the agent
+  // to open the dialogue. Idea stage keeps its warm static greeting.
+  useEffect(() => {
+    if (!hydrated || !project) return;
+    if (isStreaming || subAgent || transitioning) return;
+    if (conversation.length > 0) return;
+    const kickoff = KICKOFF_MESSAGES[subStep];
+    if (!kickoff) return;
+    void runKickoff(kickoff);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, project?.id, subStep, conversation.length]);
+
+  async function runKickoff(kickoffMessage: string) {
+    if (!project) return;
+    setIsStreaming(true);
+    setStreamingTurn("");
+
+    let accumulated = "";
+    await postSSE(
+      `/api/stages/${subStep}`,
+      {
+        userMessage: kickoffMessage,
+        conversationHistory: [],
+        premise: project.premise,
+        setting: project.setting,
+        characters: project.characters,
+        story: project.story,
+      },
+      {
+        onProseToken: (token) => {
+          accumulated += token;
+          setStreamingTurn(accumulated);
+        },
+        onStructuredUpdate: (stage, data) => {
+          applyStructuredUpdate(project.id, stage as PlanSubStep, data);
+        },
+        onCostUpdate: ({ totalUsd }) => addCost(project.id, totalUsd),
+        onComplete: (data) => {
+          const usage = (data as { usage?: { costUsd?: number } }).usage;
+          if (usage?.costUsd) addCost(project.id, usage.costUsd);
+        },
+        onError: (err) => {
+          accumulated += `\n\n_⚠ Error: ${err}_`;
+        },
+      },
+    );
+
+    // Append agent turn ONLY (kickoff message is hidden from user)
+    appendTurn(project.id, subStep, {
+      id: crypto.randomUUID(),
+      role: "agent",
+      agent: "main",
+      content: accumulated,
+      timestamp: new Date().toISOString(),
+    });
+    setIsStreaming(false);
+    setStreamingTurn("");
+  }
 
   if (!hydrated) {
     return (
@@ -63,9 +142,6 @@ export default function PlanView() {
       </main>
     );
   }
-
-  const subStep = project.currentPlanSubStep;
-  const conversation = project.conversations[subStep] ?? [];
 
   // -- Main conversation handler --
   const handleSend = async (message: string) => {
