@@ -261,6 +261,13 @@ export const ConversationTurnSchema = z.object({
   agent: AgentRoleSchema.optional(),
   content: z.string(),
   timestamp: z.string().datetime(),
+  /**
+   * If true, this turn is hidden from the rendered conversation but still included
+   * in API conversationHistory. Used by auto-kickoff to satisfy Gemini's
+   * "history must start with user role" constraint without showing the synthetic
+   * trigger message in the UI.
+   */
+  hidden: z.boolean().optional(),
 });
 export type ConversationTurn = z.infer<typeof ConversationTurnSchema>;
 

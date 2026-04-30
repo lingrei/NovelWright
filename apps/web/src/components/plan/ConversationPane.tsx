@@ -62,8 +62,11 @@ export function ConversationPane({
     setInput("");
   };
 
+  // Filter hidden turns (e.g. auto-kickoff synthetic user message) from rendered list
+  const visibleConversation = conversation.filter((t) => !t.hidden);
+
   const greeting = SUB_STEP_GREETING[subStep];
-  const isEmpty = conversation.length === 0 && !isStreaming;
+  const isEmpty = visibleConversation.length === 0 && !isStreaming;
 
   return (
     <section className="flex flex-col border-r border-[var(--color-studio-border-subtle)] overflow-hidden">
@@ -86,7 +89,7 @@ export function ConversationPane({
         )}
 
         <div className="space-y-6">
-          {conversation.map((turn) => (
+          {visibleConversation.map((turn) => (
             <Turn key={turn.id} turn={turn} />
           ))}
           {isStreaming && streamingContent && (

@@ -110,7 +110,15 @@ export default function PlanView() {
       },
     );
 
-    // Append agent turn ONLY (kickoff message is hidden from user)
+    // Append a HIDDEN user turn first so subsequent API calls see proper user-then-model
+    // alternation. Gemini rejects history that starts with a model role turn.
+    appendTurn(project.id, subStep, {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: kickoffMessage,
+      timestamp: new Date().toISOString(),
+      hidden: true,
+    });
     appendTurn(project.id, subStep, {
       id: crypto.randomUUID(),
       role: "agent",
